@@ -1,13 +1,11 @@
 #!/bin/bash
+set -euo pipefail
 
 echo "NOTE: Validating that required commands are found in your PATH."
-# List of required commands
-commands=("aws" "packer" "terraform" "jq")
+commands=("oci" "packer" "terraform" "jq")
 
-# Flag to track if all commands are found
 all_found=true
 
-# Iterate through each command and check if it's available
 for cmd in "${commands[@]}"; do
   if ! command -v "$cmd" &> /dev/null; then
     echo "ERROR: $cmd is not found in the current PATH."
@@ -17,23 +15,25 @@ for cmd in "${commands[@]}"; do
   fi
 done
 
-# Final status
-if [ "$all_found" = true ]; then
-  echo "NOTE: All required commands are available."
-else
+if [ "$all_found" = false ]; then
   echo "ERROR: One or more commands are missing."
   exit 1
 fi
 
-echo "NOTE: Checking AWS cli connection."
+echo "NOTE: All required commands are available."
 
-aws sts get-caller-identity --query "Account" --output text >> /dev/null
-
-# Check the return code of the login command
-if [ $? -ne 0 ]; then
-  echo "ERROR: Failed to connect to AWS. Please check your credentials and environment variables."
+# Verify OCI config exists and the CLI can reach the API
+if [ ! -f "$HOME/.oci/config" ]; then
+  echo "ERROR: ~/.oci/config not found. Run 'oci setup config' to configure."
   exit 1
-else
-  echo "NOTE: Successfully logged into AWS."
 fi
 
+echo "NOTE: Checking OCI CLI connection..."
+oci iam region list --output table > /dev/null
+
+if [ $? -ne 0 ]; then
+  echo "ERROR: Failed to connect to OCI. Check ~/.oci/config credentials."
+  exit 1
+fi
+
+echo "NOTE: Successfully connected to OCI."

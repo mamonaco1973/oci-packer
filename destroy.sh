@@ -2,128 +2,69 @@
 
 # ==============================================================================
 # DESTROY PIPELINE: TEARDOWN AND CLEANUP
-# ==============================================================================
 #
-# This script performs a full teardown of resources created by the apply
-# pipeline. It destroys EC2 deployments, deregisters custom AMIs, deletes
-# associated snapshots, removes secrets, and tears down networking.
-#
-# WARNING:
-# - This script is destructive and irreversible.
-# - All matching AMIs, snapshots, and infrastructure will be removed.
-# - Use only in non-production or controlled environments.
+# WARNING: Destructive and irreversible. Destroys deployed instances, deletes
+# all custom images built by Packer, and tears down networking infrastructure.
 # ==============================================================================
 
-# ==============================================================================
-# SET DEFAULT AWS REGION
-# ==============================================================================
-#
-# Export the AWS region to ensure all AWS CLI commands run in the intended
-# account and regional context.
-# ==============================================================================
+set -euo pipefail
 
-export AWS_DEFAULT_REGION="us-east-2"
+# Resolve compartment OCID — same logic as apply.sh
+if [ -n "${OCI_COMPARTMENT_ID:-}" ]; then
+  export TF_VAR_compartment_ocid="$OCI_COMPARTMENT_ID"
+else
+  tenancy_ocid=$(awk -F'=' '/^tenancy/{gsub(/ /,"",$2); print $2}' ~/.oci/config | head -1)
+  export TF_VAR_compartment_ocid="$tenancy_ocid"
+fi
+
+# Must match the BUILD_WINDOWS value used during apply so Terraform's count
+# evaluation matches the existing state — avoids phantom create-then-destroy
+BUILD_WINDOWS="${BUILD_WINDOWS:-true}"
 
 # ==============================================================================
-# STEP 1: DESTROY EC2 DEPLOYMENT (03-deploy)
-# ==============================================================================
-#
-# Tear down EC2 instances and related resources managed by Terraform in the
-# deployment layer.
+# STEP 1: DESTROY DEPLOYED INSTANCES
 # ==============================================================================
 
 cd 03-deploy
-
-# Initialize Terraform backend and providers before destroy.
-terraform init
-
-# Destroy all EC2 resources without interactive confirmation.
-terraform destroy -auto-approve
-
-# Return to project root.
+terraform init -upgrade
+terraform destroy -auto-approve \
+  -var "compartment_ocid=$TF_VAR_compartment_ocid" \
+  -var "subnet_ocid=ocid1.placeholder" \
+  -var "availability_domain=placeholder" \
+  -var "ssh_public_key=placeholder" \
+  -var "packer_password=placeholder" \
+  -var "deploy_windows=$BUILD_WINDOWS"
 cd ..
 
 # ==============================================================================
-# STEP 2: CLEANUP GAMES AMIS AND SNAPSHOTS
-# ==============================================================================
-#
-# Deregister all custom AMIs matching the "games_ami*" naming convention and
-# delete their associated EBS snapshots.
+# STEP 2: DELETE CUSTOM IMAGES BUILT BY PACKER
 # ==============================================================================
 
-for ami_id in $(aws ec2 describe-images \
-  --owners self \
-  --filters "Name=name,Values=games_ami*" \
-  --query "Images[].ImageId" \
-  --output text); do
+echo "NOTE: Deleting custom games images..."
+for image_id in $(oci compute image list \
+  --compartment-id "$TF_VAR_compartment_ocid" \
+  --all \
+  | jq -r '.data[] | select(.["display-name"] | test("^games_image_")) | .id'); do
 
-  # Retrieve snapshot IDs associated with the AMI.
-  for snapshot_id in $(aws ec2 describe-images \
-    --image-ids "$ami_id" \
-    --query "Images[].BlockDeviceMappings[].Ebs.SnapshotId" \
-    --output text); do
+  echo "NOTE: Deleting image: $image_id"
+  oci compute image delete --image-id "$image_id" --force
+done
 
-    echo "NOTE: Deregistering AMI: $ami_id"
-    aws ec2 deregister-image --image-id "$ami_id"
+echo "NOTE: Deleting custom desktop images..."
+for image_id in $(oci compute image list \
+  --compartment-id "$TF_VAR_compartment_ocid" \
+  --all \
+  | jq -r '.data[] | select(.["display-name"] | test("^desktop_image_")) | .id'); do
 
-    echo "NOTE: Deleting snapshot: $snapshot_id"
-    aws ec2 delete-snapshot --snapshot-id "$snapshot_id"
-  done
+  echo "NOTE: Deleting image: $image_id"
+  oci compute image delete --image-id "$image_id" --force
 done
 
 # ==============================================================================
-# STEP 3: CLEANUP DESKTOP AMIS AND SNAPSHOTS
-# ==============================================================================
-#
-# Repeat the cleanup process for desktop AMIs matching "desktop_ami*".
-# ==============================================================================
-
-for ami_id in $(aws ec2 describe-images \
-  --owners self \
-  --filters "Name=name,Values=desktop_ami*" \
-  --query "Images[].ImageId" \
-  --output text); do
-
-  for snapshot_id in $(aws ec2 describe-images \
-    --image-ids "$ami_id" \
-    --query "Images[].BlockDeviceMappings[].Ebs.SnapshotId" \
-    --output text); do
-
-    echo "NOTE: Deregistering AMI: $ami_id"
-    aws ec2 deregister-image --image-id "$ami_id"
-
-    echo "NOTE: Deleting snapshot: $snapshot_id"
-    aws ec2 delete-snapshot --snapshot-id "$snapshot_id"
-  done
-done
-
-# ==============================================================================
-# STEP 4: DELETE PACKER CREDENTIAL SECRET
-# ==============================================================================
-#
-# Permanently delete the Secrets Manager entry used during Packer builds.
-# The secret is removed without a recovery window.
-# ==============================================================================
-
-aws secretsmanager delete-secret \
-  --secret-id "packer-credentials" \
-  --force-delete-without-recovery
-
-# ==============================================================================
-# STEP 5: DESTROY NETWORKING INFRASTRUCTURE (01-infrastructure)
-# ==============================================================================
-#
-# Tear down the base networking resources including VPCs, subnets, route
-# tables, and security groups created for the build environment.
+# STEP 3: DESTROY NETWORKING INFRASTRUCTURE
 # ==============================================================================
 
 cd 01-infrastructure
-
-# Initialize Terraform backend and providers before destroy.
-terraform init
-
-# Destroy all networking resources without interactive confirmation.
+terraform init -upgrade
 terraform destroy -auto-approve
-
-# Return to project root.
 cd ..

@@ -1,56 +1,29 @@
-# ==============================================================================
-# EC2 INSTANCE: GAMES SERVER DEPLOYMENT
-# ==============================================================================
-#
-# This resource deploys a games server EC2 instance using the most recent
-# custom AMI produced by the Packer build pipeline.
-#
-# The instance is launched into a public subnet with internet access and
-# attaches security groups required for web and administrative traffic.
-# ==============================================================================
+# ================================================================================
+# Compute Instance: Games Server
+# Deployed from the most recent custom Linux image built by Packer
+# ================================================================================
 
-resource "aws_instance" "games_server" {
-  # Use the latest custom games AMI discovered via data source lookup.
-  ami = data.aws_ami.latest_games_ami.id
+resource "oci_core_instance" "games_server" {
+  availability_domain = var.availability_domain
+  compartment_id      = var.compartment_ocid
+  shape               = "VM.Standard.E2.1.Micro"
+  display_name        = "games-server"
 
-  # Burstable instance type suitable for lightweight game workloads.
-  instance_type = "t3.micro"
+  source_details {
+    source_type = "image"
+    source_id   = data.oci_core_images.games_image.images[0].id
+  }
 
-  # --------------------------------------------------------------------------
-  # Network placement
-  # --------------------------------------------------------------------------
-  # Launch the instance in the first public subnet.
-  subnet_id = data.aws_subnet.packer_subnet_1.id
+  create_vnic_details {
+    subnet_id        = var.subnet_ocid
+    assign_public_ip = true
+  }
 
-  # Attach security groups controlling inbound access.
-  vpc_security_group_ids = [
-    data.aws_security_group.packer_sg_http.id,
-    data.aws_security_group.packer_sg_https.id,
-    data.aws_security_group.packer_sg_ssh.id
-  ]
-
-  # Assign a public IP address for external access.
-  associate_public_ip_address = true
-
-  # --------------------------------------------------------------------------
-  # IAM configuration
-  # --------------------------------------------------------------------------
-  # Attach an IAM instance profile that enables AWS Systems Manager access.
-  iam_instance_profile = aws_iam_instance_profile.ssm_instance_profile.name
-
-  # --------------------------------------------------------------------------
-  # USER DATA: INITIAL BOOTSTRAP CONFIGURATION
-  # --------------------------------------------------------------------------
-  # Execute a startup script to perform instance-specific configuration.
-  user_data = templatefile("${path.module}/scripts/userdata.sh", {
-    ami_name = data.aws_ami.latest_games_ami.name
-  })
-
-  # --------------------------------------------------------------------------
-  # INSTANCE TAGGING
-  # --------------------------------------------------------------------------
-  tags = {
-    # Name tag for identification in the AWS console.
-    Name = "games-ec2-instance"
+  metadata = {
+    ssh_authorized_keys = var.ssh_public_key
+    # user_data must be base64-encoded — cloud-init decodes it on first boot
+    user_data           = base64encode(templatefile("${path.module}/scripts/userdata.sh", {
+      ami_name = data.oci_core_images.games_image.images[0].display_name
+    }))
   }
 }

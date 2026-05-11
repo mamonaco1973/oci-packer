@@ -1,45 +1,50 @@
 #!/bin/bash
+set -euo pipefail
 
-# Set non-interactive mode for APT operations to avoid prompts during automation
 export DEBIAN_FRONTEND=noninteractive
 
-# Wait for 60 seconds to allow APT mirrors and background services to settle
-# This is often necessary in freshly booted cloud VMs where apt-daily may still be locking the package manager
-echo "Adding sleep to give mirrors time to sync..."
-sleep 60
+# OCI fires cloud-init before internet routing is established — wait for
+# actual IPv4 HTTP connectivity rather than relying on DNS resolution alone
+echo "NOTE: Waiting for network connectivity..."
+until curl -4 -sf --max-time 5 http://us.archive.ubuntu.com/ubuntu/ > /dev/null 2>&1; do
+  echo "NOTE: Network not ready, retrying in 5 seconds..."
+  sleep 5
+done
+echo "NOTE: Network ready."
 
-# Manually update the local APT package cache
-# Ensures we have the latest package info before installing anything
-echo "Updating apt cache manually..."
-sudo DEBIAN_FRONTEND=noninteractive apt-get update -y
+# OCI images ship with a region mirror that resolves IPv6-only; rewrite to
+# us.archive.ubuntu.com to force IPv4 and avoid DDoS-affected mirrors
+echo "NOTE: Replacing apt sources with us.archive.ubuntu.com..."
+sudo tee /etc/apt/sources.list.d/ubuntu.sources > /dev/null << 'EOF'
+Types: deb
+URIs: http://us.archive.ubuntu.com/ubuntu
+Suites: noble noble-updates noble-backports
+Components: main restricted universe multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
 
-# Install Apache2 web server using APT
-# -y flag ensures automatic yes to prompts; env var ensures no interactive dialogs
-# Re-declaring DEBIAN_FRONTEND with sudo to ensure it propagates inside the command
-sudo DEBIAN_FRONTEND=noninteractive apt-get install apache2 -y
+Types: deb
+URIs: http://us.archive.ubuntu.com/ubuntu
+Suites: noble-security
+Components: main restricted universe multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+EOF
 
-# Enable Apache2 to start automatically on boot
-# Suppress all stdout/stderr output for cleanliness/log minimization
-sudo systemctl enable apache2 >/dev/null 2>&1
+echo "NOTE: Running apt-get update..."
+sudo apt-get -o Acquire::ForceIPv4=true update -y
 
-# Start Apache2 service immediately
-# Again, suppress output to avoid noisy logs or unnecessary error display
-sudo systemctl start apache2 >/dev/null 2>&1
+echo "NOTE: Installing apache2..."
+sudo DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::ForceIPv4=true install -y apache2
 
-# Copy prebuilt website content from /tmp/html to Apache's default document root
-# Assumes files are staged ahead of time (e.g., by Packer or cloud-init)
+echo "NOTE: Enabling and starting apache2..."
+sudo systemctl enable apache2
+sudo systemctl start apache2
+
+# Copy prebuilt game assets staged by the file provisioner
 sudo cp /tmp/html/* /var/www/html/
 
-# Ensure snapd (Snap package manager daemon) is started
-# Required for launching snap-managed services like amazon-ssm-agent
-sudo systemctl start snapd
+# OCI Ubuntu images block all ports via iptables by default —
+# the Security List alone is not sufficient for inbound traffic
+echo "NOTE: Opening port 80 in host firewall..."
+sudo iptables -I INPUT -p tcp --dport 80 -j ACCEPT
 
-# Enable snapd to start on boot to persist snap capabilities after reboot
-sudo systemctl enable snapd
-
-# Enable the snap-installed AWS Systems Manager (SSM) agent at boot
-# Full service name required due to nested naming used by Snap packages
-sudo systemctl enable snap.amazon-ssm-agent.amazon-ssm-agent.service
-
-# Start the AWS SSM agent immediately so the instance can register with AWS Systems Manager
-sudo systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
+echo "NOTE: Done."

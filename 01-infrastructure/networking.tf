@@ -1,136 +1,133 @@
-# ==============================================================================
-# VPC CONFIGURATION FOR PACKER INFRASTRUCTURE
-# ==============================================================================
-#
-# This module provisions a minimal public VPC layout suitable for running Packer
-# builds that require outbound internet access (package installs, updates, etc).
-#
-# Topology:
-# - One VPC (10.0.0.0/24)
-# - One Internet Gateway
-# - One public route table with a default route to the IGW
-# - Two public subnets across two AZs
-# - Route table associations for both subnets
-# ==============================================================================
+# ================================================================================
+# Networking — VCN → IGW → Route Table → Security List → Subnet
+# OCI has no implicit default network — every component must be explicit
+# ================================================================================
 
-# ==============================================================================
-# VPC
-# ==============================================================================
+# OCI requires explicit AD selection — resolved dynamically so this works
+# across regions with different numbers of availability domains
+data "oci_identity_availability_domains" "ads" {
+  compartment_id = var.compartment_ocid
+}
 
-resource "aws_vpc" "packer-vpc" {
-  # Primary VPC CIDR block used for all subnets in this module.
-  cidr_block = "10.0.0.0/24"
+# ================================================================================
+# VCN
+# ================================================================================
 
-  # Enable DNS features so instances can resolve and receive DNS hostnames.
-  enable_dns_support   = true
-  enable_dns_hostnames = true
+resource "oci_core_vcn" "packer_vcn" {
+  compartment_id = var.compartment_ocid
+  cidr_block     = "10.0.0.0/16"
+  display_name   = "packer-vcn"
+  # dns_label must be alphanumeric and ≤ 15 chars — forms the VCN DNS domain
+  dns_label      = "packervcn"
+}
 
-  tags = {
-    # Human-readable name for identification in the AWS console.
-    Name = "packer-vpc"
+# ================================================================================
+# Internet Gateway + Route Table
+# ================================================================================
 
-    # Optional logical grouping tag (not an AWS-native resource group).
-    ResourceGroup = "packer-asg-rg"
+resource "oci_core_internet_gateway" "packer_igw" {
+  compartment_id = var.compartment_ocid
+  vcn_id         = oci_core_vcn.packer_vcn.id
+  display_name   = "packer-igw"
+  enabled        = true
+}
+
+resource "oci_core_route_table" "packer_rt" {
+  compartment_id = var.compartment_ocid
+  vcn_id         = oci_core_vcn.packer_vcn.id
+  display_name   = "packer-route-table"
+
+  route_rules {
+    destination       = "0.0.0.0/0"
+    destination_type  = "CIDR_BLOCK"
+    network_entity_id = oci_core_internet_gateway.packer_igw.id
   }
 }
 
-# ==============================================================================
-# INTERNET GATEWAY
-# ==============================================================================
+# ================================================================================
+# Security List
+# Attaches at the subnet level — unlike AWS Security Groups which attach to
+# instances. All instances in the subnet share these rules.
+# ================================================================================
 
-resource "aws_internet_gateway" "packer-igw" {
-  # Attach the Internet Gateway to the VPC to enable internet routing.
-  vpc_id = aws_vpc.packer-vpc.id
+resource "oci_core_security_list" "packer_sl" {
+  compartment_id = var.compartment_ocid
+  vcn_id         = oci_core_vcn.packer_vcn.id
+  display_name   = "packer-security-list"
 
-  tags = {
-    # Name tag for identification in the AWS console.
-    Name = "packer-igw"
+  # SSH — Packer Linux communicator and deployed instance access
+  ingress_security_rules {
+    protocol  = "6"
+    source    = "0.0.0.0/0"
+    stateless = false
+    tcp_options {
+      min = 22
+      max = 22
+    }
+  }
+
+  # HTTP — games server web traffic
+  ingress_security_rules {
+    protocol  = "6"
+    source    = "0.0.0.0/0"
+    stateless = false
+    tcp_options {
+      min = 80
+      max = 80
+    }
+  }
+
+  # HTTPS — general browser and build traffic
+  ingress_security_rules {
+    protocol  = "6"
+    source    = "0.0.0.0/0"
+    stateless = false
+    tcp_options {
+      min = 443
+      max = 443
+    }
+  }
+
+  # WinRM HTTPS — Packer communicator for Windows builds
+  ingress_security_rules {
+    protocol  = "6"
+    source    = "0.0.0.0/0"
+    stateless = false
+    tcp_options {
+      min = 5986
+      max = 5986
+    }
+  }
+
+  # RDP — Windows desktop server remote access
+  ingress_security_rules {
+    protocol  = "6"
+    source    = "0.0.0.0/0"
+    stateless = false
+    tcp_options {
+      min = 3389
+      max = 3389
+    }
+  }
+
+  egress_security_rules {
+    protocol    = "all"
+    destination = "0.0.0.0/0"
+    stateless   = false
   }
 }
 
-# ==============================================================================
-# ROUTING: PUBLIC ROUTE TABLE + DEFAULT ROUTE
-# ==============================================================================
+# ================================================================================
+# Subnet
+# One subnet is sufficient — OCI security lists are per-subnet, not per-instance
+# ================================================================================
 
-resource "aws_route_table" "public" {
-  # Route table associated with the VPC for public subnet routing.
-  vpc_id = aws_vpc.packer-vpc.id
-
-  tags = {
-    # Name tag for identification in the AWS console.
-    Name = "public-route-table"
-  }
-}
-
-resource "aws_route" "default_route" {
-  # Bind this route to the public route table.
-  route_table_id = aws_route_table.public.id
-
-  # Default route for all IPv4 traffic destined for the internet.
-  destination_cidr_block = "0.0.0.0/0"
-
-  # Send default traffic to the Internet Gateway.
-  gateway_id = aws_internet_gateway.packer-igw.id
-}
-
-# ==============================================================================
-# PUBLIC SUBNETS
-# ==============================================================================
-
-resource "aws_subnet" "packer-subnet-1" {
-  # Place subnet 1 in the VPC.
-  vpc_id = aws_vpc.packer-vpc.id
-
-  # First /26 block within the /24 (64 total addresses, fewer usable).
-  cidr_block = "10.0.0.0/26"
-
-  # Assign public IPs by default for instances launched in this subnet.
-  map_public_ip_on_launch = true
-
-  # Availability Zone placement for subnet 1.
-  availability_zone = "us-east-2a"
-
-  tags = {
-    # Name tag for identification in the AWS console.
-    Name = "packer-subnet-1"
-  }
-}
-
-resource "aws_subnet" "packer-subnet-2" {
-  # Place subnet 2 in the VPC.
-  vpc_id = aws_vpc.packer-vpc.id
-
-  # Second /26 block within the /24 (64 total addresses, fewer usable).
-  cidr_block = "10.0.0.64/26"
-
-  # Assign public IPs by default for instances launched in this subnet.
-  map_public_ip_on_launch = true
-
-  # Availability Zone placement for subnet 2.
-  availability_zone = "us-east-2b"
-
-  tags = {
-    # Name tag for identification in the AWS console.
-    Name = "packer-subnet-2"
-  }
-}
-
-# ==============================================================================
-# ROUTE TABLE ASSOCIATIONS
-# ==============================================================================
-
-resource "aws_route_table_association" "public_rta_1" {
-  # Associate subnet 1 with the public route table.
-  subnet_id = aws_subnet.packer-subnet-1.id
-
-  # Use the route table that contains the default IGW route.
-  route_table_id = aws_route_table.public.id
-}
-
-resource "aws_route_table_association" "public_rta_2" {
-  # Associate subnet 2 with the public route table.
-  subnet_id = aws_subnet.packer-subnet-2.id
-
-  # Use the route table that contains the default IGW route.
-  route_table_id = aws_route_table.public.id
+resource "oci_core_subnet" "packer_subnet" {
+  compartment_id    = var.compartment_ocid
+  vcn_id            = oci_core_vcn.packer_vcn.id
+  cidr_block        = "10.0.1.0/24"
+  display_name      = "packer-subnet"
+  dns_label         = "packersubnet"
+  route_table_id    = oci_core_route_table.packer_rt.id
+  security_list_ids = [oci_core_security_list.packer_sl.id]
 }

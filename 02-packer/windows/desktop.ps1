@@ -1,9 +1,9 @@
 try {
-    # Customize Desktop Icons
+    # Remove OCI console agent shortcut — end users don't need it on the desktop
+    Remove-Item -Path "C:\Users\Administrator\Desktop\OCI*.lnk" -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path "C:\Users\Public\Desktop\OCI*.lnk" -Force -ErrorAction SilentlyContinue
 
-    # Remove EC2 Tools - End Users don't need them on the desktop
-
-    del C:\Users\Administrator\Desktop\EC2*.website
+    Write-Host "Desktop configuration complete."
 }
 catch {
     Write-Error "An error occurred configuring desktop icons."

@@ -1,23 +1,25 @@
-# ==============================================================================
-# AWS PROVIDER CONFIGURATION
-# ==============================================================================
-#
-# This provider block configures Terraform to communicate with AWS services.
-# The AWS provider is required to authenticate, plan, and manage all AWS
-# resources defined in this configuration.
-#
-# The region setting determines where resources will be created and managed.
-# Selecting the correct region is important for latency, cost, availability,
-# and regulatory or compliance requirements.
-#
-# Notes:
-# - Ensure AWS credentials are configured securely before running Terraform.
-# - Supported methods include AWS CLI profiles, environment variables,
-#   instance or task roles, and Terraform-native authentication.
-# - Update the region value if deploying resources outside US East (Ohio).
-# ==============================================================================
+# ================================================================================
+# OCI Provider Configuration
+# Auth reads from ~/.oci/config DEFAULT profile — no credentials in code
+# ================================================================================
 
-provider "aws" {
-  # AWS region where Terraform-managed resources will be created.
-  region = "us-east-2"
+terraform {
+  required_providers {
+    oci = {
+      source  = "oracle/oci"
+      version = "~> 6.0"
+    }
+  }
+}
+
+provider "oci" {
+  region = "us-ashburn-1"
+}
+
+output "games_server_ip" {
+  value = oci_core_instance.games_server.public_ip
+}
+
+output "desktop_server_ip" {
+  value = var.deploy_windows ? oci_core_instance.desktop_server[0].public_ip : "windows deployment disabled"
 }
