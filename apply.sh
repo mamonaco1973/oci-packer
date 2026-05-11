@@ -79,7 +79,7 @@ linux_image_ocid=$(oci compute image list \
   --sort-by TIMECREATED \
   --sort-order DESC \
   --limit 1 \
-  | jq -r '.data[0].id')
+  2>/dev/null | jq -r '.data[0].id')
 
 if [[ -z "$linux_image_ocid" || "$linux_image_ocid" == "null" ]]; then
   echo "ERROR: Failed to resolve Ubuntu 24.04 base image OCID"
@@ -97,7 +97,7 @@ if [ "$BUILD_WINDOWS" = "true" ]; then
     --sort-by TIMECREATED \
     --sort-order DESC \
     --limit 1 \
-    | jq -r '.data[0].id')
+    2>/dev/null | jq -r '.data[0].id')
 
   if [[ -z "$windows_image_ocid" || "$windows_image_ocid" == "null" ]]; then
     echo "ERROR: Failed to resolve Windows Server 2022 base image OCID"
@@ -125,7 +125,6 @@ packer build \
   -var "availability_domain=$availability_domain" \
   -var "subnet_ocid=$subnet_ocid" \
   -var "base_image_ocid=$linux_image_ocid" \
-  -var "ssh_public_key=$ssh_public_key" \
   -var "password=$packer_password" \
   linux_ami.pkr.hcl
 

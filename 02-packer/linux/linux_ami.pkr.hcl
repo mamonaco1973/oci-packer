@@ -48,11 +48,6 @@ variable "shape" {
   default     = "VM.Standard.E2.1.Micro"
 }
 
-variable "ssh_public_key" {
-  description = "SSH public key injected into the build instance for Packer access"
-  default     = ""
-}
-
 variable "password" {
   description = "Password for the packer OS user created during provisioning"
   default     = ""
@@ -74,11 +69,8 @@ source "oracle-oci" "ubuntu_image" {
 
   # Default SSH username for Canonical Ubuntu OCI images
   ssh_username = "ubuntu"
-
-  # Packer injects our generated public key — private key is on disk for auth
-  metadata = {
-    ssh_authorized_keys = var.ssh_public_key
-  }
+  # oracle-oci builder generates a temporary key pair and injects it via
+  # metadata.ssh_authorized_keys automatically — do not override here
 }
 
 # ================================================================================
