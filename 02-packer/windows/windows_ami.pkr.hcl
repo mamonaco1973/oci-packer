@@ -70,7 +70,7 @@ source "oracle-oci" "windows_image" {
   # WinRM HTTPS communicator — bootstrap_win.ps1 configures WinRM via
   # cloudbase-init user_data before Packer connects
   communicator   = "winrm"
-  winrm_username = "Administrator"
+  winrm_username = "opc"
   winrm_password = var.password
   winrm_use_ssl  = true
   winrm_insecure = true
