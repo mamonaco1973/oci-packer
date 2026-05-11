@@ -79,7 +79,6 @@ linux_image_ocid=$(oci compute image list \
   --sort-by TIMECREATED \
   --sort-order DESC \
   --limit 1 \
-  --all \
   | jq -r '.data[0].id')
 
 if [[ -z "$linux_image_ocid" || "$linux_image_ocid" == "null" ]]; then
@@ -98,7 +97,6 @@ if [ "$BUILD_WINDOWS" = "true" ]; then
     --sort-by TIMECREATED \
     --sort-order DESC \
     --limit 1 \
-    --all \
     | jq -r '.data[0].id')
 
   if [[ -z "$windows_image_ocid" || "$windows_image_ocid" == "null" ]]; then
