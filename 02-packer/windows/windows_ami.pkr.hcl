@@ -78,11 +78,14 @@ source "oracle-oci" "windows_image" {
   # Allow time for Windows boot + cloudbase-init to run bootstrap_win.ps1
   winrm_timeout  = "20m"
 
-  # cloudbase-init processes this on first boot to set the Admin password
-  # and enable WinRM before Packer attempts to connect
-  user_data = templatefile("./bootstrap_win.ps1", {
-    password = var.password
-  })
+  # cloudbase-init reads user_data from OCI metadata on first boot.
+  # base64encode here because OCI metadata expects pre-encoded content;
+  # the plugin does not double-encode when using the metadata map directly.
+  metadata = {
+    user_data = base64encode(templatefile("./bootstrap_win.ps1", {
+      password = var.password
+    }))
+  }
 }
 
 # ================================================================================

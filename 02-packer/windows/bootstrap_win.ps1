@@ -1,4 +1,4 @@
-<powershell>
+#ps1_sysnative
 
 try {
     Write-Host "Starting WinRM configuration script..." -ForegroundColor Cyan
@@ -42,5 +42,3 @@ catch {
     Write-Error "An error occurred during WinRM setup: $_"
     exit 1
 }
-
-</powershell>
