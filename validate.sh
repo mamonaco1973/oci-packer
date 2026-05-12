@@ -1,16 +1,46 @@
 #!/bin/bash
+
+# ==============================================================================
+# VALIDATE SCRIPT: DISPLAY DEPLOYED OCI INSTANCE ACCESS DETAILS
+# ==============================================================================
+# Retrieves key Terraform outputs and prints them in a human-readable format.
+# Run after a successful apply.sh.
+# ==============================================================================
+
 set -euo pipefail
+cd 03-deploy
 
-# ==============================================================================
-# VALIDATION: PRINT ACCESS DETAILS FOR DEPLOYED INSTANCES
-# ==============================================================================
+# ------------------------------------------------------------------------------
+# VERIFY TERRAFORM INITIALIZATION
+# ------------------------------------------------------------------------------
+if [ ! -d ".terraform" ]; then
+  echo "ERROR: Terraform is not initialized in this directory."
+  echo "Run 'terraform init' before executing this script."
+  exit 1
+fi
 
-games_ip=$(terraform -chdir=03-deploy output -raw games_server_ip)
-desktop_ip=$(terraform -chdir=03-deploy output -raw desktop_server_ip)
+# ------------------------------------------------------------------------------
+# RETRIEVE TERRAFORM OUTPUTS
+# ------------------------------------------------------------------------------
+GAMES_SERVER_IP=$(terraform output -raw games_server_ip)
+DESKTOP_SERVER_IP=$(terraform output -raw desktop_server_ip)
 
-echo "NOTE: Games URL is http://$games_ip"
-echo "NOTE: Games server IP is $games_ip"
-echo "NOTE: SSH: ssh -i 01-infrastructure/keys/Private_Key ubuntu@$games_ip"
+# ------------------------------------------------------------------------------
+# DISPLAY RESULTS
+# ------------------------------------------------------------------------------
+echo "============================================================"
+echo " OCI Compute Instance Access Details"
+echo "============================================================"
+echo
+echo " Games Server Public IP:"
+echo "   ${GAMES_SERVER_IP}"
+echo "   http://${GAMES_SERVER_IP}"
+echo "   ssh -i ../01-infrastructure/keys/Private_Key ubuntu@${GAMES_SERVER_IP}"
+echo
+echo " Windows Desktop Server Public IP:"
+echo "   ${DESKTOP_SERVER_IP}"
+echo "   RDP to ${DESKTOP_SERVER_IP} with user 'packer'"
+echo
+echo "============================================================"
 
-echo "NOTE: Windows desktop IP is $desktop_ip"
-echo "NOTE: RDP to $desktop_ip with user 'packer'"
+cd ..
