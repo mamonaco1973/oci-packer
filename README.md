@@ -11,7 +11,7 @@ In the OCI solution, we use Packer to build both **Linux images** and **Windows 
 
 ## Packer Workflow
 
-![packer workflow](packer-workflow-aws.png)
+![packer workflow](packer-workflow-oci.png)
 
 ## Prerequisites
 

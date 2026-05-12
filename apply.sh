@@ -119,14 +119,14 @@ cd 02-packer
 cd linux
 echo "NOTE: Building Linux image"
 
-# packer init linux_ami.pkr.hcl
-# packer build \
-#   -var "compartment_ocid=$TF_VAR_compartment_ocid" \
-#   -var "availability_domain=$availability_domain" \
-#   -var "subnet_ocid=$subnet_ocid" \
-#   -var "base_image_ocid=$linux_image_ocid" \
-#   -var "password=$packer_password" \
-#   linux_ami.pkr.hcl
+packer init linux_ami.pkr.hcl
+packer build \
+  -var "compartment_ocid=$TF_VAR_compartment_ocid" \
+  -var "availability_domain=$availability_domain" \
+  -var "subnet_ocid=$subnet_ocid" \
+  -var "base_image_ocid=$linux_image_ocid" \
+  -var "password=$packer_password" \
+  linux_ami.pkr.hcl
 
 cd ..
 
