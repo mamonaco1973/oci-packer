@@ -2,8 +2,8 @@
 # Packer Configuration and Plugin Setup
 #
 # Builds a custom Windows Server 2022 OCI image using the oracle-oci builder.
-# Communicates via WinRM HTTPS — bootstrap_win.ps1 enables WinRM through
-# cloudbase-init user_data before Packer attempts to connect.
+# Communicates via WinRM HTTPS — OCI Windows images ship with WinRM pre-enabled;
+# bootstrap_win.ps1 sets the opc account password via cloudbase-init user_data.
 # ================================================================================
 
 packer {
@@ -49,7 +49,7 @@ variable "shape" {
 }
 
 variable "password" {
-  description = "Administrator password set during provisioning and used by WinRM"
+  description = "opc account password set via cloudbase-init and used by WinRM"
   default     = ""
 }
 
@@ -67,8 +67,8 @@ source "oracle-oci" "windows_image" {
   # Unique image name using a sanitized timestamp
   image_name = "desktop_image_${replace(timestamp(), ":", "-")}"
 
-  # WinRM HTTPS communicator — bootstrap_win.ps1 configures WinRM via
-  # cloudbase-init user_data before Packer connects
+  # WinRM HTTPS communicator — OCI Windows images have WinRM pre-enabled;
+  # bootstrap_win.ps1 activates the opc account via cloudbase-init user_data
   communicator   = "winrm"
   winrm_username = "opc"
   winrm_password = var.password
