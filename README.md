@@ -4,10 +4,16 @@ In the OCI solution, we use Packer to build both **Linux images** and **Windows 
 
 - For **Linux**, we configure an Ubuntu 24.04 image with Apache and deploy several retro HTML games. The source for the HTML games can be found at [https://gist.github.com/straker](https://gist.github.com/straker)
 - For **Windows**, we install Chrome and Firefox, apply the **latest Windows Updates**, and configure WinRM using a **cloudbase-init user data script**.
-- We use **cloudbase-init** to reset instance state on each deployment — the OCI equivalent of EC2Launch Sysprep — ensuring a clean, reusable image every time.
-- The images are built inside a **VCN and subnet** provisioned by Terraform in Phase 1.
-- We test deployments by accessing the Linux instance over **HTTP (port 80)** and the Windows instance via **RDP** using a local `packer` account with a secure password.
-- **Windows is optional** — set `BUILD_WINDOWS=false` before running `apply.sh` to skip the Windows build and deployment entirely.
+
+![packer diagram](oci-packer.png)
+
+We use **cloudbase-init** to reset instance state on each deployment — the OCI equivalent of EC2Launch Sysprep — ensuring a clean, reusable image every time.
+
+The images are built inside a **VCN and subnet** provisioned by Terraform in Phase 1.
+
+We test deployments by accessing the Linux instance over **HTTP (port 80)** and the Windows instance via **RDP** using a local `packer` account with a secure password.
+
+**Windows is optional** — set `BUILD_WINDOWS=false` before running `apply.sh` to skip the Windows build and deployment entirely.
 
 ## Packer Workflow
 
