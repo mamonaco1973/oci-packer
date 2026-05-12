@@ -92,11 +92,11 @@ source "oracle-oci" "windows_image" {
 build {
   sources = ["source.oracle-oci.windows_image"]
 
-  provisioner "windows-update" {}
+  # provisioner "windows-update" {}
 
-  provisioner "windows-restart" {
-    restart_timeout = "15m"
-  }
+  # provisioner "windows-restart" {
+  #   restart_timeout = "15m"
+  # }
 
   provisioner "powershell" {
     script = "./security.ps1"

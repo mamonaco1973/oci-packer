@@ -94,4 +94,10 @@ ssh -i 01-infrastructure/keys/Private_Key ubuntu@<games_server_ip>
 Create an RDP session to the Windows instance public IP. When prompted for credentials, use:
 
 - **Username:** `packer`
-- **Password:** retrieve with `terraform -chdir=03-deploy output` or from the `packer_password` output of `01-infrastructure`
+- **Password:** run `get_password.sh` from the project root:
+
+```bash
+~/oci-packer$ ./get_password.sh
+NOTE: Packer user:     packer
+NOTE: Packer password: <generated-password>
+```

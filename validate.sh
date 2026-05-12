@@ -40,6 +40,7 @@ echo
 echo " Windows Desktop Server Public IP:"
 echo "   ${DESKTOP_SERVER_IP}"
 echo "   RDP to ${DESKTOP_SERVER_IP} with user 'packer'"
+echo "   Run ./get_password.sh to retrieve the packer account password"
 echo
 echo "============================================================"
 
