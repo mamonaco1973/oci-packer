@@ -35,7 +35,7 @@ echo
 echo " Games Server Public IP:"
 echo "   ${GAMES_SERVER_IP}"
 echo "   http://${GAMES_SERVER_IP}"
-echo "   ssh -i ../01-infrastructure/keys/Private_Key ubuntu@${GAMES_SERVER_IP}"
+echo "   ssh -i ./01-infrastructure/keys/Private_Key ubuntu@${GAMES_SERVER_IP}"
 echo
 echo " Windows Desktop Server Public IP:"
 echo "   ${DESKTOP_SERVER_IP}"
