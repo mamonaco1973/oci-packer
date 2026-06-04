@@ -15,6 +15,10 @@ We test deployments by accessing the Linux instance over **HTTP (port 80)** and 
 
 **Windows is optional** — set `BUILD_WINDOWS=false` before running `apply.sh` to skip the Windows build and deployment entirely.
 
+See it in action — full deployment walkthrough below.
+
+[![Watch the video](https://img.youtube.com/vi/ZV-3l1yIwrw/maxresdefault.jpg)](https://www.youtube.com/watch?v=ZV-3l1yIwrw)
+
 ## Packer Workflow
 
 ![packer workflow](packer-workflow-oci.png)
